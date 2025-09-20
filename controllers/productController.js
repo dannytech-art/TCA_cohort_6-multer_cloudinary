@@ -99,3 +99,69 @@ exports.deleteproduct = async (req, res) => {
     res.status(500).json({ message: error.message })
   }
 }
+
+exports.updateProduct = async (req, res) => {
+  try {
+    const { id, indexes } = req.params; // product id + indexes string
+    const { name, description, price } = req.body; // other product fields
+    const files = req.files; // multer upload.array("images")
+
+    // Convert indexes "0,2" -> [0, 2]
+    const replaceIndexes = indexes
+      ? indexes.split(",").map((i) => parseInt(i.trim()))
+      : [];
+
+    const product = await productmodel.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    let updatedImages = [...product.images];
+
+    // ✅ Handle image updates if files + indexes are provided
+    if (files && files.length > 0 && replaceIndexes.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const index = replaceIndexes[i];
+
+        if (index === undefined) continue; // skip if no index provided
+
+        // delete old image from cloudinary if it exists
+        if (updatedImages[index] && updatedImages[index].publicId) {
+          await cloudinary.uploader.destroy(updatedImages[index].publicId);
+        }
+
+        // upload new image
+        const uploadResult = await cloudinary.uploader.upload(files[i].path);
+
+        // replace or add new at that index
+        updatedImages[index] = {
+          url: uploadResult.secure_url,
+          publicId: uploadResult.public_id,
+        };
+
+        // remove local file
+        fs.unlinkSync(files[i].path);
+      }
+    }
+
+    // ✅ Prepare update data
+    const data = {
+      name: name || product.name,
+      description: description || product.description,
+      price: price || product.price,
+      images: updatedImages,
+    };
+
+    // ✅ Update product
+    const updatedProduct = await productmodel.findByIdAndUpdate(id, data, {
+      new: true,
+    });
+
+    res.status(200).json({
+      message: "Product updated successfully",
+      data: updatedProduct,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

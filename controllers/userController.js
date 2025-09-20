@@ -104,37 +104,37 @@ exports.updateUser = async (req, res) => {
     const { id } = req.params;
     const { fullName, email, gender } = req.body;
     const file = req.file
-    const product = await productModel.findById(id);
-    if (!product) {
+    const user = await usermodel.findById(id);
+    if (!user) {
       return res.status(404).json({
-        message: "Product not found",
+        message: "user not found",
       });
     }
-     const imageDetails = []
-         for (const image of file) {
-             const uploadResult = await cloudinary.uploader.upload(image.path)
-             const fileInfo = {
+     const imageDetails = {}
+         if (file) {
+             const uploadResult = await cloudinary.uploader.upload(file.path)
+             const imageDetails = {
                  url: uploadResult.secure_url,
                  publicId: uploadResult.public_id
              }
-             imageDetails.push(fileInfo)
-             fs.unlinkSync(files.path)
+
+             fs.unlinkSync(file.path)
          }
 
     const data = {
-      fullName: fullName || product.fullName,
-      email: email || product.email,
-      gender :gender || product.gender,
+      fullName: fullName || user.fullName,
+      email: email || user.email,
+      gender :gender || user.gender,
       images: imageDetails
     };
 
 
-    const updatedProduct = await productModel.findByIdAndUpdate(id, data, {
+    const updatedProduct = await usermodel.findByIdAndUpdate(id, data, {
       new: true,
     });
 
     res.status(200).json({
-      message: "Product updated",
+      message: "user updated",
       data: updatedProduct,
     });
   } catch (error) {
