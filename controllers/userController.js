@@ -1,64 +1,77 @@
 const usermodel = require('../models/userModel')
 const cloudinary = require('../config/cloudinary')
 const fs = require('fs')
-exports.createUser = async (req,res)=> {
-    try {
-        const { fullName, email, gender } = req.body
-        const file = req.file
-    const userExist = await usermodel.findOne({email: email.toLowerCase()})
-      if (userExist) {
-        res.status(400).json({
-            message: `user exist `
-        })
-        }
-        const result = await cloudinary.uploader.upload(file.path)
-             fs.unlinkSync(file.path)
-      const image = {
-            url: result.secure_url,
-            publicId: result.public_id
-        }
-      const user = new usermodel({
-        fullName,
-        email,
-        gender,
-        profilePicture : image
-      })
 
-      await user.save()
-      fs.unlinkSync(file.path)
-      res.status(201).json({
-        message: `user successfully registered`,
-        data: user
-      })
-    } catch (error) {
-        fs.unlinkSync(req.file.path)
-        res.status( 500).json({
-            message: error.message
-        })
+exports.createUser = async (req, res) => {
+  try {
+    const { fullName, email, gender } = req.body
+    const file = req.file
+
+    const userExist = await usermodel.findOne({ email: email.toLowerCase() })
+    if (userExist) {
+      // cleanup before returning
+      if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path)
+      return res.status(400).json({ message: `User already exists` })
     }
+
+    const result = await cloudinary.uploader.upload(file.path)
+
+    // delete the file once
+    if (fs.existsSync(file.path)) fs.unlinkSync(file.path)
+
+    const image = {
+      url: result.secure_url,
+      publicId: result.public_id
+    }
+
+    const user = new usermodel({
+      fullName,
+      email,
+      gender,
+      profilePicture: image
+    })
+
+    await user.save()
+
+    res.status(201).json({
+      message: `User successfully registered`,
+      data: user
+    })
+  } catch (error) {
+    // only delete if file still exists
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path)
+    }
+    res.status(500).json({ message: error.message })
+  }
 }
-exports.deleteUser = async (req,res)=>{
-    const {id} = req.params
-const user = await usermodel.findByIdAndDelete(id)
-       if (!user) {
-        res.status(404).json({
-            message: `user not found`
-        })
-        // delete from cloudinary
-        await cloudinary.uploader.destroy(user.profilePicture.publicId)
-        res.status(200).json({
-        message: `user successfully deleted`,
-        data: user
-       })
+
+exports.deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params
+    const user = await usermodel.findById(id)
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" })
     }
-    try {
-        
-    } catch (error) {
-        res.status( 500).json({
-            message: error.message
-        })
+
+    // delete from cloudinary if image exists
+    if (user.profilePicture && user.profilePicture.publicId) {
+      await cloudinary.uploader.destroy(user.profilePicture.publicId)
     }
+
+    // delete from db
+    await user.deleteOne()
+
+    res.status(200).json({
+      message: "User successfully deleted",
+      data: user
+    })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
 }
+
 exports.getAll = async (req,res)=>{
      try {
         const user = await usermodel.find()
