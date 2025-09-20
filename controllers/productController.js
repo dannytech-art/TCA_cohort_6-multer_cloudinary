@@ -102,11 +102,11 @@ exports.deleteproduct = async (req, res) => {
 
 exports.updateProduct = async (req, res) => {
   try {
-    const { id, indexes } = req.params; // product id + indexes string
-    const { name, description, price } = req.body; // other product fields
-    const files = req.files; // multer upload.array("images")
+    const { id, indexes } = req.params; 
+    const { name, description, price } = req.body
+    const files = req.files; 
 
-    // Convert indexes "0,2" -> [0, 2]
+    
     const replaceIndexes = indexes
       ? indexes.split(",").map((i) => parseInt(i.trim()))
       : [];
@@ -118,33 +118,33 @@ exports.updateProduct = async (req, res) => {
 
     let updatedImages = [...product.images];
 
-    // ✅ Handle image updates if files + indexes are provided
+    
     if (files && files.length > 0 && replaceIndexes.length > 0) {
       for (let i = 0; i < files.length; i++) {
         const index = replaceIndexes[i];
 
-        if (index === undefined) continue; // skip if no index provided
+        if (index === undefined) continue; 
 
-        // delete old image from cloudinary if it exists
+        
         if (updatedImages[index] && updatedImages[index].publicId) {
           await cloudinary.uploader.destroy(updatedImages[index].publicId);
         }
 
-        // upload new image
+        
         const uploadResult = await cloudinary.uploader.upload(files[i].path);
 
-        // replace or add new at that index
+        
         updatedImages[index] = {
           url: uploadResult.secure_url,
           publicId: uploadResult.public_id,
         };
 
-        // remove local file
+        
         fs.unlinkSync(files[i].path);
       }
     }
 
-    // ✅ Prepare update data
+    
     const data = {
       name: name || product.name,
       description: description || product.description,
@@ -152,7 +152,7 @@ exports.updateProduct = async (req, res) => {
       images: updatedImages,
     };
 
-    // ✅ Update product
+    
     const updatedProduct = await productmodel.findByIdAndUpdate(id, data, {
       new: true,
     });
